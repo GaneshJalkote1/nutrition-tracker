@@ -1,0 +1,90 @@
+import tkinter as tk
+from tkinter import filedialog
+import requests
+import json
+
+# API Keys (Replace with your own keys)
+VISION_API_KEY = "your_google_cloud_vision_api_key"
+NUTRITIONIX_APP_ID = "your_nutritionix_app_id"
+NUTRITIONIX_APP_KEY = "your_nutritionix_app_key"
+
+# Language selection
+def select_language():
+    print("Choose Language: 1) English 2) Hindi 3) Marathi")
+    choice = input("Enter choice (1/2/3): ")
+    return {"1": "English", "2": "Hindi", "3": "Marathi"}.get(choice, "English")
+
+# Goal selection
+def select_goal():
+    print("Choose Goal: 1) Health 2) Gym")
+    choice = input("Enter choice (1/2): ")
+    return "Health" if choice == "1" else "Gym"
+
+# Function to analyze image with Google Vision API
+def analyze_image(image_path):
+    with open(image_path, "rb") as image_file:
+        image_data = image_file.read()
+    
+    url = f"https://vision.googleapis.com/v1/images:annotate?key={VISION_API_KEY}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "requests": [{
+            "image": {"content": image_data.decode("ISO-8859-1")},
+            "features": [{"type": "LABEL_DETECTION", "maxResults": 5}]
+        }]
+    }
+    
+    response = requests.post(url, headers=headers, json=payload)
+    labels = response.json()
+    
+    food_items = [label["description"] for label in labels["responses"][0]["labelAnnotations"]]
+    return food_items
+
+# Function to fetch nutrition data
+def get_nutrition_data(food_item):
+    url = "https://trackapi.nutritionix.com/v2/natural/nutrients"
+    headers = {
+        "x-app-id": NUTRITIONIX_APP_ID,
+        "x-app-key": NUTRITIONIX_APP_KEY,
+        "Content-Type": "application/json"
+    }
+    payload = {"query": food_item}
+    
+    response = requests.post(url, headers=headers, json=payload)
+    nutrition_info = response.json()
+    
+    return nutrition_info["foods"][0] if "foods" in nutrition_info else None
+
+# GUI for selecting image
+def select_image():
+    root = tk.Tk()
+    root.withdraw()
+    file_path = filedialog.askopenfilename()
+    return file_path
+
+# Main function
+def main():
+    language = select_language()
+    goal = select_goal()
+    print(f"Language: {language}, Goal: {goal}")
+    
+    print("Select an image of your food item.")
+    image_path = select_image()
+    
+    food_items = analyze_image(image_path)
+    if not food_items:
+        print("Could not recognize the food item.")
+        return
+    
+    print(f"Detected food items: {food_items}")
+    
+    for food in food_items:
+        nutrition_data = get_nutrition_data(food)
+        if nutrition_data:
+            print(f"Nutrition for {food}: {nutrition_data}")
+            break
+    else:
+        print("No nutritional data found.")
+
+if __name__ == "__main__":
+    main()
